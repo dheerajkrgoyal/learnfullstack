@@ -78,17 +78,31 @@ app.post('/api/persons', (request, response) => {
         })
     }
 
-    const duplicate = persons.find(p => p.name == body.name)
-    if(duplicate){
-        return response.status(400).json({
-            "error": "name already exist"
-        })
-    }
-
     const newPerson = {...body, id: generateId()}
     console.log(newPerson)
     persons = persons.concat(newPerson)
     return response.status(201).json(newPerson)
+})
+
+app.put('/api/persons/:id', (request, response) => {
+    const id = request.params.id
+    const body = request.body
+
+    if(!body.name || !body.number){
+        return response.status(400).json({
+            "error": "name or number is missing"
+        })
+    }
+
+    const personToUpdate = persons.find(person => person.id === id)
+    
+    if(!personToUpdate){
+        return response.status(404).send(`Person with ${id} not found`)
+    }
+
+    const updatedPerson = {...personToUpdate, name: body.name, number: body.number}
+    persons = persons.map(person => person.id === id? updatedPerson : person)
+    return response.status(200).json(updatedPerson)
 })
 
 const PORT = process.env.PORT || 3001
