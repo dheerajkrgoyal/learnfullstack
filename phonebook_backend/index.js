@@ -7,6 +7,7 @@ morgan.token('request-body', (request, response)=>{
     return JSON.stringify(request.body)
 })
 
+app.use(express.static('dist'))
 app.use(express.json())
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :request-body'))
 
@@ -84,7 +85,8 @@ app.post('/api/persons', (request, response) => {
         })
     }
 
-    const newPerson = {...body, id: generateId}
+    const newPerson = {...body, id: generateId()}
+    console.log(newPerson)
     persons = persons.concat(newPerson)
     return response.status(201).json(newPerson)
 })

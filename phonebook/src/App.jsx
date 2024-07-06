@@ -28,7 +28,7 @@ const App = () => {
   const addNew = (event) => {
     event.preventDefault()
 
-    const duplicate = persons.find(person => person.name === newName)
+    const duplicate = persons.find(person => person.name.toLowerCase() === newName.toLowerCase())
     if(!duplicate){
       
       const newObj = {
@@ -97,8 +97,8 @@ const App = () => {
     if(confirm(`Delete ${personToDelete.name}`)){
       personService
       .remove(id)
-      .then((response) => {
-        setPersons(persons.filter(person => person.id !== response.id))
+      .then(() => {
+        setPersons(persons.filter(person => person.id !== personToDelete.id))
         sendNotification('Deleted person successfully', 'positive')
       })
       .catch(() => {
