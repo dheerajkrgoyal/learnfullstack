@@ -427,3 +427,134 @@ morgan.token('request-body', (request, response)=>{
 
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :request-body'))
 ```
+
+### Build and Deply:
+
+In order to run the frontend code we execute
+
+```
+npm run build
+```
+
+It will create dist folder which contains minified versions of javascript and index file. These are minified because it is optimised for production.
+
+We have two parts in our application. backend and frontend. We need to copy the dist folder from the frontend to backend folder so that our backend server can also serve the frontend.
+
+In node js we need to add static middleware so that it can serve frontend static files.
+
+```javascript
+app.use(express.static('dist'))
+```
+
+Now our backend will serve both frontend and backend logic.
+However copying dist folder fron the frontend to backend folder maually is cumbersome task.
+So we can automate it slightly using the script in package.json of backend
+
+```json
+"scripts": {
+    "build-ui": "rm -rf dist && cd ../phonebook && npm run build && cp -r dist ../phonebook_backend",
+    "deploy-full": "npm run build-ui && git add . && git commit -m uibuild && git push"
+  }
+```
+
+The above script exposes command deploy-full which will run the build of frontend. copy the dist folder to backend and commit and push the backend changes to git repository.
+Now our PAAS platform (render in this case) will detech commit and redeploy the changes.
+
+```
+npm run deploy-full
+```
+
+### MongoDB and Mongoose
+
+We will use MongoDB to store our document. 
+We can go to mongodb atlas and create free cluster.
+
+We will install mongoose in the backend. It provides us higher level functions to interact with mongodb.
+
+```
+npm intall mongoose
+```
+
+### Creating connection and basics of Mongoose
+
+```javascript
+const mongoose = require('mongoose')
+
+if (process.argv.length<3) {
+  console.log('give password as argument')
+  process.exit(1)
+}
+
+const password = process.argv[2]
+
+const url =
+  `mongodb+srv://fullstack:${password}@cluster0.o1opl.mongodb.net/?retryWrites=true&w=majority`
+
+mongoose.set('strictQuery',false)
+
+mongoose.connect(url)
+
+const noteSchema = new mongoose.Schema({
+  content: String,
+  important: Boolean,
+})
+
+const Note = mongoose.model('Note', noteSchema)
+
+const note = new Note({
+  content: 'HTML is easy',
+  important: true,
+})
+
+note.save().then(result => {
+  console.log('note saved!')
+  mongoose.connection.close()
+})
+```
+
+After establishing the connection to the DB, we define schema for the collection and the matching model for document.
+
+```javascript
+const noteSchema = new mongoose.Schema({
+  content: String,
+  important: Boolean,
+})
+
+const Note = mongoose.model('Note', noteSchema)
+```
+Mongodb is schemaless, meaning the DB doesn't care about the structure of the document.
+But why are we defining schema then? 
+The idea is at the level of application w.r.t Mongoose things are consistent.
+
+### Creating and saving object
+
+Next, we create the a new note object with the help of Note model:
+
+```javascript
+const note = new Note({
+  content: 'HTML is Easy',
+  important: false,
+})
+```
+
+Models are construction functions that create new JS object based on the parameters provided. They have all the functions to interact with the DB.
+
+```javascript
+note.save().then(result => {
+  console.log('note saved!')
+  mongoose.connection.close()
+})
+```
+
+When the object is saved successfully, the event handler in then() gets called. The event handler will closes the database connection in this case.
+
+### Fetching objects from the MongoDB
+
+```javascript
+Note.find({}).then(result => {
+  result.forEach(note => {
+    console.log(note)
+  })
+  mongoose.connection.close()
+})
+```
