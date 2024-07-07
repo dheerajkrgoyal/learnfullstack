@@ -44,8 +44,8 @@ const App = () => {
           setNewNumber('')
           sendNotification('New Person is added', 'positive')
         })
-        .catch(() => {
-          sendNotification('Error in adding new person', 'negative')
+        .catch((error) => {
+          sendNotification(error.response.data, 'negative')
         })
     }
     else{
@@ -59,8 +59,8 @@ const App = () => {
             setNewNumber('')
             sendNotification('Person has been updated', 'positive')
           })
-          .catch(() => {
-            sendNotification('Error in updating person', 'negative')
+          .catch((error) => {
+            sendNotification(error.response.data, 'negative')
           })
       }
     }
@@ -101,8 +101,8 @@ const App = () => {
         setPersons(persons.filter(person => person.id !== personToDelete.id))
         sendNotification('Deleted person successfully', 'positive')
       })
-      .catch(() => {
-        sendNotification('Error in deleting person', 'negative')
+      .catch((error) => {
+        sendNotification(error.response.data, 'negative')
       })
     }
   }

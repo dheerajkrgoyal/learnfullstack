@@ -595,3 +595,58 @@ personSchema.set("toJSON", {
 })
 ```
 
+### Error Handling
+
+Instead of defining catch function and returning response everywhere we can define global function which is supposed to handle error. It can be done be defining custom middleware.
+
+```javascript
+app.get('/api/notes/:id', (request, response, next) => {
+  Note.findById(request.params.id)
+    .then(note => {
+      if (note) {
+        response.json(note)
+      } else {
+        response.status(404).end()
+      }
+    })
+
+    .catch(error => next(error))
+})
+```
+
+Above we defined a next function and passing the error to the next middleware.
+Express error handlers are middleware that are defined with a function that accepts four parameters. Our error handler looks like this:
+
+```javascript
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+
+// this has to be the last loaded middleware, also all the routes should be registered before this!
+app.use(errorHandler)
+```
+
+### Data Validation in Mongoose
+
+Instead of validating the objects manually in each route. We can leverage validation functions in Mongoose.
+We can define validation rule for each field in the schema:
+
+```javascript
+const noteSchema = new mongoose.Schema({
+
+  content: {
+    type: String,
+    minLength: 5,
+    required: true
+  },
+  important: Boolean
+})
+```
+
+he Mongoose custom validator functionality allows us to create new validators if none of the built-in ones cover our needs.

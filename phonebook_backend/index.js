@@ -22,46 +22,47 @@ app.get('/info', (request, response) => {
                 <p>${new Date()}</p>`)
 })
 
-app.get('/api/persons', (request, response) => {
+app.get('/api/persons', (request, response, next) => {
     Person
         .find({})
         .then(persons => {
             return response.json(persons)
         })
+        .catch(error => next(error))
 })
 
-app.get('/api/persons/:id', (request, response) => {
+app.get('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
     Person
         .findById(id)
         .then(person => {
-            return response.json(person)
+            if(person){
+                return response.json(person)
+            }
+            else{
+                return response.status.send(`person with ${id} not found`)
+            }
         })
-        .catch(error => {
-            console.log(error.message)
-        })
+        .catch(error => next(error))
 })
 
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
     Person
         .findByIdAndDelete(id)
         .then(result => {
-            return response.status(204).send()
+            if(result){
+                return response.status(204).send()
+            }
+            else{
+                return response.status(404).send(`person with ${id} not found`)
+            }
         })
-        .catch(error => {
-            console.log(error.message)
-        })
+        .catch(error => next(error))
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
     const body = request.body
-
-    if(!body.name || !body.number){
-        return response.status(400).json({
-            "error" : "name or number is missing"
-        })
-    }
 
     const newPerson = new Person({
         "name": body.name,
@@ -73,33 +74,40 @@ app.post('/api/persons', (request, response) => {
         .then(savedPerson => {
             return response.status(201).json(savedPerson)
         })
-        .catch(error => {
-            console.log(error.message)
-            return response.status(500).send("Error in saving new person")
-        })
+        .catch(error => next(error))
 })
 
-app.put('/api/persons/:id', (request, response) => {
+app.put('/api/persons/:id', (request, response, next) => {
     const id = request.params.id
     const body = request.body
 
-    if(!body.name || !body.number){
-        return response.status(400).json({
-            "error": "name or number is missing"
+    Person
+        .findByIdAndUpdate(id, {"name": body.name, "number": body.number}, {new: true, runValidators: true, context:"query"})
+        .then(result => {
+            if(result){
+                return response.status(200).json(result)
+            }
+            else{
+                return response.status(404).send(`person with ${id} not found`)
+            }
         })
+        .catch(error => next(error))
+})
+
+const errorHandler = (error, request, response, next) => {
+    console.log(error)
+
+    if(error.name === "CastError"){
+        return response.status(400).send("malformed id")
+    }
+    else if(error.name == "ValidationError"){
+        return response.status(400).send(error.message)
     }
 
-    Person
-        .findByIdAndUpdate(id, {"name": body.name, "number": body.number}, {new: true})
-        .then(result => {
-            console.log(result)
-            return response.status(200).json(result)
-        })
-        .catch(error => {
-            console.log(error.message)
-            return response.status(500).send("Error updating person")
-        })
-})
+    next(error)
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 
