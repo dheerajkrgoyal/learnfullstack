@@ -558,3 +558,40 @@ Note.find({}).then(result => {
   mongoose.connection.close()
 })
 ```
+
+### Using dotenv to manage credential
+
+We can pass arguments while runnning the file with node. But we can also use something called dotenv to manage our credentials separately in a file and accessing them in JS file.
+
+```
+node install dotenv
+```
+
+Create .env file in project root directory. Remember to add it in .gitignore so that you dont commit it and expose your credentials
+
+In .env file add following content:
+
+```
+MONGODB_URL="mongodb+srv://fullstack:password@db.gwcmebp.mongodb.net/?retryWrites=true&w=majority&appName=db"
+```
+
+In index.js file simply access it using
+
+```javascript
+require('dotenv').config()
+const mongoUrl = process.env.MONGODB_URL
+```
+
+### Transform document before returning
+We need to overrride toJSon tranform method in the schema:
+
+```javascript
+personSchema.set("toJSON", {
+    transform: (document, returnedObj) => {
+        returnedObj.id = document._id.toString()
+        delete returnedObj._id
+        delete returnedObj.__v
+    }
+})
+```
+
