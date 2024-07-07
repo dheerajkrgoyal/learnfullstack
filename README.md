@@ -650,3 +650,190 @@ const noteSchema = new mongoose.Schema({
 ```
 
 he Mongoose custom validator functionality allows us to create new validators if none of the built-in ones cover our needs.
+
+### Lint
+Lint or a linter is any tool that detects and flags errors in programming languages, including stylistic errors. The term lint-like behavior is sometimes applied to the process of flagging suspicious language usage. Lint-like tools generally perform static analysis of source code.
+
+In JS, we use ESlint to do analysis
+
+```
+npm install eslint @eslint/js --save-dev
+```
+
+We initialize default configuration of eslint
+
+```
+npx eslint --init
+```
+
+![alt text](eslint.png)
+
+The configuration will be saved in the generated eslint.config.mjs file
+
+```javascript
+// ...
+export default [
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globals.node,
+      },
+      ecmaVersion: "latest",
+    },
+  },
+]
+```
+
+ESLint configuration file defines the files option with ["*/.js"], which tells ESLint to look at all JavaScript files in our project folder.  
+We want to make use of ESLint's recommended settings along with our own. The @eslint/js package we installed earlier provides us with predefined configurations for ESLint. We'll import it and enable it in the configuration file:
+
+```javascript
+// ...
+import js from '@eslint/js'
+// ...
+
+export default [
+  js.configs.recommended, // hightlight-line
+  {
+    // ...
+  }
+]
+```
+
+We've added the js.configs.recommended to the top of the configuration array, this ensures that ESLint's recommended settings are applied first before our own custom options.
+
+Let's continue building the configuration file. Install a plugin that defines a set of code style-related rules:
+
+```
+npm install --save-dev @stylistic/eslint-plugin-js
+```
+
+Import and enable the plugin, and add these four code style rules:
+
+```javascript
+// ...
+import stylisticJs from '@stylistic/eslint-plugin-js'
+
+export default [
+  {
+    // ...
+    plugins: {
+      '@stylistic/js': stylisticJs
+    },
+    rules: {
+      '@stylistic/js/indent': [
+        'error',
+        2
+      ],
+      '@stylistic/js/linebreak-style': [
+        'error',
+        'unix'
+      ],
+      '@stylistic/js/quotes': [
+        'error',
+        'single'
+      ],
+      '@stylistic/js/semi': [
+        'error',
+        'never'
+      ],
+    },
+  },
+]
+```
+
+Add lint command in package.json script
+
+```javascript
+{
+  // ...
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    // ...
+
+    "lint": "eslint ."
+  },
+  // ...
+}
+```
+
+Files in the dist directory also get checked when the command is run. We do not want this to happen, and we can accomplish this by adding an object with the ignores property that specifies an array of directories and files we want to ignore.
+
+```javascript
+// ...
+export default [
+  // ...
+  { 
+    ignores: ["dist/**"],
+  },
+  //...
+]
+```
+
+Some more rules:
+
+```javascript
+import globals from "globals";
+import stylisticJs from '@stylistic/eslint-plugin-js'
+import js from '@eslint/js'
+
+export default [
+  js.configs.recommended,
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globals.node,
+      },
+      ecmaVersion: "latest",
+    },
+    plugins: {
+      '@stylistic/js': stylisticJs
+    },
+    rules: {
+      '@stylistic/js/indent': [
+        'error',
+        2
+      ],
+      '@stylistic/js/linebreak-style': [
+        'error',
+        'unix'
+      ],
+      '@stylistic/js/quotes': [
+        'error',
+        'single'
+      ],
+      '@stylistic/js/semi': [
+        'error',
+        'never'
+      ],
+      'eqeqeq': 'error',
+      'no-trailing-spaces': 'error',
+      'object-curly-spacing': [
+        'error', 'always'
+      ],
+      'arrow-spacing': [
+        'error', { 'before': true, 'after': true },
+      ],
+      'no-console': 'off',
+    },
+  },
+  { 
+    ignores: ["dist/**", "build/**"],
+  },
+]
+```
+Recommended rules: 
+https://github.com/airbnb/javascript 
+https://github.com/airbnb/javascript/tree/master/packages/eslint-config-airbnb
+
+
+
+
+
+
+

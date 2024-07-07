@@ -1,8 +1,8 @@
-const mongoose = require("mongoose")
+const mongoose = require('mongoose')
 
 if(process.argv.length < 3){
-    console.log("Necessary arguments are not provided")
-    process.exit(1)
+  console.log('Necessary arguments are not provided')
+  process.exit(1)
 }
 
 const password = process.argv[2]
@@ -13,11 +13,11 @@ mongoose.set('strictQuery',false)
 
 mongoose.connect(mongoURL)
 
-console.log("mongo connection established")
+console.log('mongo connection established')
 
 const personSchema = new mongoose.Schema({
-    "name": String,
-    "number": String
+  'name': String,
+  'number': String
 })
 
 const Person = mongoose.model('Person', personSchema)
@@ -26,27 +26,28 @@ const name = process.argv[3]
 const number = process.argv[4]
 
 if(name){
-    const person = new Person({
-        "name": name,
-        "number": number
-    })
+  const person = new Person({
+    'name': name,
+    'number': number
+  })
 
-    person
-        .save()
-        .then((response) => {
-            console.log("person is saved")
-            mongoose.connection.close()
-        })
+  person
+    .save()
+    .then((response) => {
+      console.log(response)
+      console.log('person is saved')
+      mongoose.connection.close()
+    })
 }
 
 else{
-    Person
-        .find({})
-        .then((response) => {
-            response.forEach(person => {
-                console.log(person)
-            })
+  Person
+    .find({})
+    .then((response) => {
+      response.forEach(person => {
+        console.log(person)
+      })
 
-            mongoose.connection.close()
-        })
+      mongoose.connection.close()
+    })
 }
