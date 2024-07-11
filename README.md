@@ -831,9 +831,69 @@ Recommended rules:
 https://github.com/airbnb/javascript 
 https://github.com/airbnb/javascript/tree/master/packages/eslint-config-airbnb
 
+### NodeJS Best Practice and Refactor
 
+Separate things in its own module
+Example:
 
+Create utils/logger.js
 
+```javascript
+const info = (...params) => {
+  console.log(...params)
+}
 
+const error = (...params) => {
+  console.error(...params)
+}
 
+module.exports = {
+  info, error
+}
+```
+
+Handling of environment variable and configs in one place:
+
+```javascript
+require('dotenv').config()
+
+const PORT = process.env.PORT
+const MONGODB_URI = process.env.MONGODB_URI
+
+module.exports = {
+  MONGODB_URI,
+  PORT
+}
+```
+The other parts of application can access the configs in the following way:
+
+```javascript
+const config = require('./utils/config')
+
+logger.info(`Server running on port ${config.PORT}`)
+```
+
+The index.js shouldn't have so much code. Instead we should create separate app.js file to have express related config there and index.js should just import app.js and start the server.
+
+```javascript
+const app = require('./app') // the actual Express application
+const config = require('./utils/config')
+const logger = require('./utils/logger')
+
+app.listen(config.PORT, () => {
+  logger.info(`Server running on port ${config.PORT}`)
+})
+```
+
+Even the route handler should be in their individual files controllers.
+and We use this route handle just like middleware in our app.js
+
+```javascript
+const notesRouter = require('./controllers/notes')
+app.use('/api/notes', notesRouter)
+```
+
+The router we defined earlier is used if the URL of the request starts with /api/notes. For this reason, the notesRouter object must only define the relative parts of the routes, i.e. the empty path / or just the parameter /:id.
+
+For smaller applications, the structure does not matter that much. Once the application starts to grow in size, you are going to have to establish some kind of structure and separate the different responsibilities of the application into separate modules. This will make developing the application much easier.
 
