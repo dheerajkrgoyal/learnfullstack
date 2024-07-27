@@ -897,3 +897,339 @@ The router we defined earlier is used if the URL of the request starts with /api
 
 For smaller applications, the structure does not matter that much. Once the application starts to grow in size, you are going to have to establish some kind of structure and separate the different responsibilities of the application into separate modules. This will make developing the application much easier.
 
+### Testing Node Application
+
+We will be using node's built-in test library node:test, which is well suited to the needs of the course.
+
+make changes in package.json
+
+```json
+{
+  //...
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "build:ui": "rm -rf build && cd ../frontend/ && npm run build && cp -r build ../backend",
+    "deploy": "fly deploy",
+    "deploy:full": "npm run build:ui && npm run deploy",
+    "logs:prod": "fly logs",
+    "lint": "eslint .",
+    "test": "node --test"
+  },
+  //...
+}
+```
+
+We will create a separate directory called test and inidividual file will be called filname.test.js.
+
+Sample test file:
+
+```javascript
+const { test } = require('node:test')
+const assert = require('node:assert')
+
+const reverse = require('../utils/for_testing').reverse
+
+test('reverse of a', () => {
+  const result = reverse('a')
+
+  assert.strictEqual(result, 'a')
+})
+
+test('reverse of react', () => {
+  const result = reverse('react')
+
+  assert.strictEqual(result, 'tcaer')
+})
+
+test('reverse of saippuakauppias', () => {
+  const result = reverse('saippuakauppias')
+
+  assert.strictEqual(result, 'saippuakauppias')
+})
+```
+
+The test defines the keyword test and the library assert, which is used by the tests to check the results of the functions under test.
+
+In the next row, the test file imports the function to be tested and assigns it to a variable called reverse:
+
+```javascript
+const reverse = require('../utils/for_testing').reverse
+```
+
+Individual test cases are defined with the test function. The first argument of the function is the test description as a string. The second argument is a function, that defines the functionality for the test case. The functionality for the second test case looks like this:
+
+```javascript
+() => {
+  const result = reverse('react')
+
+  assert.strictEqual(result, 'tcaer')
+}
+```
+
+The library node:test expects by default that the names of test files contain .test.
+
+Describe blocks can be used for grouping tests into logical collections. 
+
+```javascript
+describe('average', () => {
+  // tests
+})
+```
+
+describe blocks are necessary when we want to run some shared setup or teardown operations for a group of tests.
+
+When our application runs in Render it is in production mode, whereas when we start our application in our local machine it is in development mode and when we run the tests it is in test mode.
+
+Sometime we want our application to behave differently or load different env variable based on the mode it is running.
+We can achive that by setting NODE_ENV variable in script command in package.json using cross-env
+
+```
+npm install cross-env
+```
+
+```json
+{
+  // ...
+  "scripts": {
+
+    "start": "cross-env NODE_ENV=production node index.js",
+    "dev": "cross-env NODE_ENV=development nodemon index.js",
+    "test": "cross-env NODE_ENV=test node --test",
+    "build:ui": "rm -rf build && cd ../frontend/ && npm run build && cp -r build ../backend",
+    "deploy": "fly deploy",
+    "deploy:full": "npm run build:ui && npm run deploy",
+    "lint": "eslint .",
+  },
+  // ...
+}
+```
+
+Now while loading env variable in config.js we can check the running mode and load appropriate env variable
+
+```javascript
+require('dotenv').config()
+
+const PORT = process.env.PORT
+
+
+const MONGODB_URI = process.env.NODE_ENV === 'test' 
+  ? process.env.TEST_MONGODB_URI
+  : process.env.MONGODB_URI
+
+module.exports = {
+  MONGODB_URI,
+  PORT
+}
+```
+
+#### Supertest
+
+In order to test API we need to mock it and call it from our test file. To mock the APIs we use something called supertest.
+
+Firstly, install supertest package.
+
+```
+npm install --save-dev supertest
+```
+
+```javascript
+const { test, after } = require('node:test')
+const mongoose = require('mongoose')
+const supertest = require('supertest')
+const app = require('../app')
+
+const api = supertest(app)
+
+test('notes are returned as json', async () => {
+  await api
+    .get('/api/notes')
+    .expect(200)
+    .expect('Content-Type', /application\/json/)
+})
+
+after(async () => {
+  await mongoose.connection.close()
+})
+```
+
+The test imports the Express application from the app.js module and wraps it with the supertest function into a so-called superagent object. This object is assigned to the api variable and tests can use it for making HTTP requests to the backend.
+
+Once all the tests (there is currently only one) have finished running we have to close the database connection used by Mongoose. This can be easily achieved with the after method.
+
+### Initialize the databse befor test
+
+Let's initialize the database before every test with the beforeEach function:
+
+```javascript
+const { test, after, beforeEach } = require('node:test')
+const Note = require('../models/note')
+
+
+const initialNotes = [
+  {
+    content: 'HTML is easy',
+    important: false,
+  },
+  {
+    content: 'Browser can execute only JavaScript',
+    important: true,
+  },
+]
+
+// ...
+
+
+beforeEach(async () => {
+  await Note.deleteMany({})
+  let noteObject = new Note(initialNotes[0])
+  await noteObject.save()
+  noteObject = new Note(initialNotes[1])
+  await noteObject.save()
+})
+// ...
+```
+
+By doing this, we ensure that the database is in the same state before every test is run.
+
+## Async/Await
+
+The async/await syntax that was introduced in ES7 makes it possible to use asynchronous functions that return a promise in a way that makes the code look synchronous.
+
+As an example, the fetching of notes from the database with promises looks like this:
+
+```javascript
+Note.find({}).then(notes => {
+  console.log('operation returned the following notes', notes)
+})
+```
+
+The Note.find() method returns a promise and we can access the result of the operation by registering a callback function with the then method.
+
+All of the code we want to execute once the operation finishes is written in the callback function. If we wanted to make several asynchronous function calls in sequence, the situation would soon become painful. The asynchronous calls would have to be made in the callback. This would likely lead to complicated code and could potentially give birth to a so-called callback hell.
+
+We can also chain the callbacks:
+
+```javascript
+Note.find({})
+  .then(notes => {
+    return notes[0].deleteOne()
+  })
+  .then(response => {
+    console.log('the first note is removed')
+    // more code here
+  })
+  ```
+
+We could fetch all of the notes in the database by utilizing the await operator like this:
+
+```javascript
+const notes = await Note.find({})
+const response = await notes[0].deleteOne()
+
+console.log('the first note is removed')
+```
+
+The await keyword can't be used just anywhere in JavaScript code. Using await is possible only inside of an async function.
+
+```javascript
+const main = async () => {
+  const notes = await Note.find({})
+  console.log('operation returned the following notes', notes)
+
+  const response = await notes[0].deleteOne()
+  console.log('the first note is removed')
+}
+
+
+main()
+```
+
+## Error handling with async/await
+
+With async/await the recommended way of dealing with exceptions is the old and familiar try/catch mechanism.
+
+```javascript
+notesRouter.post('/', async (request, response, next) => {
+  const body = request.body
+
+  const note = new Note({
+    content: body.content,
+    important: body.important || false,
+  })
+
+  try {
+    const savedNote = await note.save()
+    response.status(201).json(savedNote)
+  } catch(exception) {
+    next(exception)
+  }
+})
+```
+
+The catch block simply calls the next function, which passes the request handling to the error handling middleware.
+
+## Eliminating the try-catch
+
+Install the library
+
+```
+npm install express-async-errors
+```
+
+Import the library in app.js 
+
+```javascript
+require('express-async-errors')
+```
+
+Just remove the try catch block now. The library handles everything under the hood. If an exception occurs in an async route, the execution is automatically passed to the error-handling middleware.
+
+We might have noticed in before each function why are we saving each object individually? Can't we use for-each loop to save the object in loop?
+
+```javascript
+beforeEach(async () => {
+  await Note.deleteMany({})
+  console.log('cleared')
+
+  helper.initialNotes.forEach(async (note) => {
+    let noteObject = new Note(note)
+    await noteObject.save()
+    console.log('saved')
+  })
+  console.log('done')
+})
+
+test('notes are returned as json', async () => {
+  console.log('entered test')
+  // ...
+}
+```
+
+The console displays following output:
+
+```
+cleared
+done
+entered test
+saved
+saved
+```
+
+The problem is that every iteration of the forEach loop generates an asynchronous operation, and beforeEach won't wait for them to finish executing. In other words, the await commands defined inside of the forEach loop are not in the beforeEach function, but in separate functions that beforeEach will not wait for.
+
+Since the execution of tests begins immediately after beforeEach has finished executing, the execution of tests begins before the database state is initialized.
+
+Solving it:
+
+```javascript
+beforeEach(async () => {
+  await Note.deleteMany({})
+
+  const noteObjects = helper.initialNotes
+    .map(note => new Note(note))
+  const promiseArray = noteObjects.map(note => note.save())
+  await Promise.all(promiseArray)
+})
+```
+
