@@ -1233,3 +1233,228 @@ beforeEach(async () => {
 })
 ```
 
+## User Administration
+
+We will define user collections separately and store ids of notes in an array in user document for each user.
+
+```javascript
+const mongoose = require('mongoose')
+
+const userSchema = new mongoose.Schema({
+  username: String,
+  name: String,
+  passwordHash: String,
+  notes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Note'
+    }
+  ],
+})
+
+userSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString()
+    delete returnedObject._id
+    delete returnedObject.__v
+    // the passwordHash should not be revealed
+    delete returnedObject.passwordHash
+  }
+})
+
+const User = mongoose.model('User', userSchema)
+
+module.exports = User
+```
+
+Mongo does not inherently know that this is a field that references notes, the syntax is purely related to and defined by Mongoose.
+
+```javascript
+const noteSchema = new mongoose.Schema({
+  content: {
+    type: String,
+    required: true,
+    minlength: 5
+  },
+  important: Boolean,
+
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+})
+```
+
+Let's work on creating route for CRUD operations for users
+Let's install the bcrypt package for generating the password hashes:
+
+```
+npm install bcrypt
+```
+
+To ensure username is unique in collection, 
+
+```javascript
+const mongoose = require('mongoose')
+
+const userSchema = mongoose.Schema({
+
+  username: {
+    type: String,
+    required: true,
+    unique: true // this ensures the uniqueness of username
+  },
+  name: String,
+  passwordHash: String,
+  notes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Note'
+    }
+  ],
+})
+
+// ...
+```
+
+Above creates a uniqueness index in the collection for the field username
+
+Mongoose validations do not detect the index violation, and instead of ValidationError they return an error of type MongoServerError. We therefore need to extend the error handler for that case:
+
+```javascript
+const errorHandler = (error, request, response, next) => {
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+
+  } else if (error.name === 'MongoServerError' && error.message.includes('E11000 duplicate key error')) {
+    return response.status(400).json({ error: 'expected `username` to be unique' })
+  }
+
+  next(error)
+}
+```
+
+We would like our API to work in such a way, that when an HTTP GET request is made to the /api/users route, the user objects would also contain the contents of the user's notes and not just their id. In a relational database, this functionality would be implemented with a join query.
+
+Mongoose library can do some of these joins for us.
+The Mongoose join is done with the populate method. Let's update the route that returns all users first in controllers/users.js file:
+
+```javascript
+usersRouter.get('/', async (request, response) => {
+
+  const users = await User
+    .find({}).populate('notes')
+
+  response.json(users)
+})
+```
+
+We can use the populate method for choosing the fields we want to include from the documents. In addition to the field id we are now only interested in content and important.
+
+```javascript
+usersRouter.get('/', async (request, response) => {
+  const users = await User
+    .find({}).populate('notes', { content: 1, important: 1 })
+
+  response.json(users)
+})
+```
+
+## Token based Authentication
+
+Link: https://www.digitalocean.com/community/tutorials/the-ins-and-outs-of-token-based-authentication#how-token-based-works
+
+Install library
+
+```
+npm install jsonwebtoken
+```
+
+Create a route /login, user will be pasing username and password
+
+Query mongo using username and extract password hash from the db. Use bcrypt to compare password in the payload and password hash from the db
+
+```javascript
+bcrypt.compare(username, user.password)
+```
+
+if user is extracted and password is matched then we create a JWT
+We create a object based on which JWT needs to created and call jsonwebtoken function
+
+```javascript
+const userForToken = {
+  username: username,
+  id: user._id
+}
+
+const token = jwt.sign(userForToken, process.env.SECRET)
+
+return response.json(200).json({token, username: user.username, name: user.name})
+```
+
+## Validating Token
+
+The token need to be passed in Authorization Header with Bearer scheme.
+We need to extract token from request header and decode it using jet verify function. we can then see the object using which the token is created. we used user id and username to create the token. we extract the id from the decoded token and fetch the User document from mongo. then we add note in mongo as well as note id in user document.
+
+```javascript
+const getTokenFrom = request => {
+  const authorization = request.get('authorization')
+  if (authorization && authorization.startsWith('Bearer ')) {
+    return authorization.replace('Bearer ', '')
+  }
+  return null
+}
+
+//...
+
+ const decodedToken = jwt.verify(getTokenFrom(request), process.env.SECRET)
+  if (!decodedToken.id) {
+    return response.status(401).json({ error: 'token invalid' })
+  }
+  const user = await User.findById(decodedToken.id)
+  ```
+
+  We also need to add JsonWebTokenError in middleware error handler in-case token is not passed in the request
+
+  ```javascript
+  else if (error.name ===  'JsonWebTokenError') {
+    return response.status(401).json({ error: 'token invalid' })
+  }
+  ```
+
+  We can also extract this logic in the middleware and chain the middleware in thr router in app.js
+
+  ```javascript
+
+  //middleware
+
+  onst authInterceptor = (request, response, next) => {
+  const authorization = request.get('authorization')
+  if(authorization && authorization.startsWith('Bearer ')){
+      request.token = authorization.replace('Bearer ', '')
+  }
+  next()
+}
+
+const userExtractor = async (request, response, next) => {
+  const decodedToken = jwt.verify(request.token, process.env.SECRET)
+  if(!decodedToken.id){
+      return response.status(401).send('invalid token')
+  }
+  const user = await User.findById(decodedToken.id)
+  request.user = user
+  next()
+}
+
+//app.js
+
+//..
+app.use('/api/blogs', middleware.authInterceptor, middleware.userExtractor, blogRouter)
+```
+
+Then we need to simply extract the user in the controller function using request.user. if the user is not found we can send 401 status.
+
+

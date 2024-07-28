@@ -2,13 +2,12 @@ const router = require('express').Router()
 const Blog = require('../models/blog.js')
 
 router.get('/', async (request, response) => {
-    const result  = await Blog.find({})
+    const result  = await Blog.find({}).populate('user',{username:1, name:1})
     return response.status(200).json(result)
 })
 
 router.get('/:id', async (request, response) => {
-
-    const blog = await Blog.findById(request.params.id)
+    const blog = await Blog.findById(request.params.id).populate('user',{username:1, name:1})
     if(blog){
         return response.status(200).json(blog)
     }
@@ -19,19 +18,38 @@ router.get('/:id', async (request, response) => {
 
 router.post('/', async (request, response) => {
     const body = request.body
-    const blog = new Blog(body)
-    const result = await blog.save()
-    return response.status(201).json(result)
+    const user = request.user
+    if(user){
+        const blog = new Blog({...body, user: user._id})
+        const result = await blog.save()
+        user.blogs = user.blogs.concat(result._id)
+        await user.save()
+        return response.status(201).json(result)
+    }else{
+        return response.status(401).send('invalid token')
+    }
 })
 
 router.delete('/:id', async (request, response) => {
-    const blog = await Blog.findByIdAndDelete(request.params.id)
-    if(blog){
-        return response.status(200).send()
+    const user = request.user
+
+    if(user.blogs.includes(request.params.id)){
+        const blog = await Blog.findByIdAndDelete(request.params.id)
+        if(blog){
+            //Updating user by deleting id in blogs array in User document.
+            user.blogs = user.blogs.filter(blog => {
+                    blog.toString() !== request.params.id
+                })
+            await user.save()
+            return response.status(204).send()
+        }
+        else{
+            return response.status(404).send(`Blog with ${request.params.id} not found`)
+        }
+    }else{
+        return response.status(401).send('invalid token')
     }
-    else{
-        return response.status(404).send(`Blog with ${request.params.id} not found`)
-    }
+    
 })
 
 router.put('/:id', async (request, response) => {
